@@ -2,7 +2,7 @@ import json
 import os
 import re
 from datasets import Dataset
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments, DataCollatorForLanguageModeling
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments, DataCollatorForLanguageModeling, TrainerCallback
 from transformers import logging
 from google.colab import drive
 
@@ -11,8 +11,8 @@ logging.set_verbosity_error()
 drive.mount('/content/drive')
 
 # Путь к датасету и к директории для чекпоинтов
-DATASET_PATH = "/content/drive/MyDrive/твойДатасетС_диска"
-OUTPUT_DIR = "/content/drive/MyDrive/rugpt2_2ch_output"
+DATASET_PATH = "/content/drive/MyDrive/сюдаТвойДатасет"
+OUTPUT_DIR = "/content/drive/MyDrive/rugpt2_Modal_output"
 
 with open(DATASET_PATH, 'r', encoding='utf-8') as f:
     texts = json.load(f)  # <- прямо загружаем как список строк
@@ -20,14 +20,12 @@ with open(DATASET_PATH, 'r', encoding='utf-8') as f:
 # Создаём HuggingFace Dataset
 dataset = Dataset.from_dict({"text": texts})
 
-
-
 # Загружаем токенизатор и модель
-model_name = "ai-forever/rugpt3small_based_on_gpt2"#в последствии меняй на дообученую тобой модель
+model_name = "/content/drive/MyDrive/model"
 tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 model = GPT2LMHeadModel.from_pretrained(model_name)
 
-# GPT2 не имеет pad_token нужно указать явно
+# GPT2 не имеет pad_token
 tokenizer.pad_token = tokenizer.eos_token
 model.resize_token_embeddings(len(tokenizer))
 
@@ -48,40 +46,43 @@ data_collator = DataCollatorForLanguageModeling(
     mlm=False
 )
 
-# Параметры обучения не забудь добавить счетчик по шагам, мне без них тяжко пришлось))!!!!!
+# Параметры обучения
 training_args = TrainingArguments(
     output_dir=OUTPUT_DIR,
     overwrite_output_dir=True,
     save_strategy="steps",
-    save_steps=200,
+    save_steps=300,
     save_total_limit=2,
     num_train_epochs=5,
-    per_device_train_batch_size=14,
+    per_device_train_batch_size=15,
     gradient_accumulation_steps=2,
     learning_rate=5e-4,
     logging_steps=100,
     fp16=True,
     seed=42,
     push_to_hub=False,
-    report_to=[]  # вот это отключит wandb и другие логгеры что-бы некий api не требовал
+    report_to=[]
 )
 
+# === Кастомный Callback для вывода шагов
+class StepPrinterCallback(TrainerCallback):
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step % training_args.logging_steps == 0:
+            print(f"Шаг: {state.global_step}")
 
-
-
-# тренер
+# Тренер
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_dataset,
     tokenizer=tokenizer,
-    data_collator=data_collator
+    data_collator=data_collator,
+    callbacks=[StepPrinterCallback()]
 )
 
-# работа тренера
+# Обучение
 trainer.train()
 
-# Финальное сохранение( на диск вместе с чекпоинтами, рекомендую работать с последним чекпоинтом а не с конечной моделью
-# дело в том что модель с чекпоинта можно дообучить что иногда важно)
+# Сохранение модели
 trainer.save_model(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
