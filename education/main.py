@@ -63,6 +63,7 @@ training_args = TrainingArguments(
     push_to_hub=False,
     report_to=[]
 )
+print("тест работы ")
 
 # === Кастомный Callback для вывода шагов
 class StepPrinterCallback(TrainerCallback):
