@@ -1,10 +1,11 @@
 import json
-import os
-import re
+
+import drive
 from datasets import Dataset
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments, DataCollatorForLanguageModeling, TrainerCallback
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, DataCollatorForLanguageModeling, TrainerCallback
 from transformers import logging
-from google.colab import drive
+
+from model.methods.training import get_training_args
 
 logging.set_verbosity_error()
 
@@ -45,24 +46,9 @@ data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer,
     mlm=False
 )
+# Параметры обучения cm класс training.py
 
-# Параметры обучения
-training_args = TrainingArguments(
-    output_dir=OUTPUT_DIR,
-    overwrite_output_dir=True,
-    save_strategy="steps",
-    save_steps=300,
-    save_total_limit=2,
-    num_train_epochs=5,
-    per_device_train_batch_size=15,
-    gradient_accumulation_steps=2,
-    learning_rate=5e-4,
-    logging_steps=100,
-    fp16=True,
-    seed=42,
-    push_to_hub=False,
-    report_to=[]
-)
+training_args = get_training_args(OUTPUT_DIR)
 print("тест работы ")
 
 # === Кастомный Callback для вывода шагов
