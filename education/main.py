@@ -14,7 +14,7 @@ drive.mount('/content/drive')
 # Путь к датасету и к директории для чекпоинтов
 DATASET_PATH = "/content/drive/MyDrive/сюдаТвойДатасет"
 OUTPUT_DIR = "/content/drive/MyDrive/rugpt2_Modal_output"
-
+print("тестовый вывод")
 with open(DATASET_PATH, 'r', encoding='utf-8') as f:
     texts = json.load(f)  # <- прямо загружаем как список строк
 
