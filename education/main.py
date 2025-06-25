@@ -5,7 +5,7 @@ from datasets import Dataset
 from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, DataCollatorForLanguageModeling, TrainerCallback
 from transformers import logging
 
-from model.methods.training import get_training_args
+from model.methods.training import get_training_args,get_trainer
 
 logging.set_verbosity_error()
 
@@ -58,15 +58,7 @@ class StepPrinterCallback(TrainerCallback):
             print(f"Шаг: {state.global_step}")
 
 # Тренер
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-    tokenizer=tokenizer,
-    data_collator=data_collator,
-    callbacks=[StepPrinterCallback()]
-)
-
+trainer =get_trainer(model,training_args,tokenized_dataset,tokenizer,data_collator,StepPrinterCallback)
 # Обучение
 trainer.train()
 

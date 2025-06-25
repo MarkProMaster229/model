@@ -1,4 +1,4 @@
-from transformers import TrainingArguments
+from transformers import TrainingArguments, Trainer
 
 def get_training_args(output_dir):
     training_args = TrainingArguments(
@@ -18,3 +18,14 @@ def get_training_args(output_dir):
         report_to=[]
     )
     return training_args
+
+def get_trainer(model,training_args,tokenized_dataset,tokenizer,data_collator,StepPrinterCallback):
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        callbacks=[StepPrinterCallback()]
+    )
+    return trainer
