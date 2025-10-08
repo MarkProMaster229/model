@@ -6,8 +6,18 @@ from transformers import AutoTokenizer
 
 # 1. Токенизация
 tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
-text = ["hello world frfr - furry cute милые лисята"]  # список, чтобы был батч - 1
-
+text = [(
+    "Мамочка ты моя хорошая, хорошая ты моя мама, мамуля ты моя хорошая! "
+    "Эх ты, матюшка ты моя! Мамочка ты моя! Что ж ты натворила-то?! "
+    "Холодной хочешь стать что ли?! Остывшие щи хочешь мне преподать что ли? "
+    "Мам! Тюря, ты каша-малаша в лепесточки! Эх ты! Мать-то моя! "
+    "Лесом пошли бы, полем пошли бы! Сели бы! Спокойно, спросил бы, "
+    "покакать можно, ты бы сказала бы: иди и покакай под кустик-то! "
+    "И я б покакал бы! Посрал бы там! Обосрал всё! "
+    "Говно бы все вытер пальцем, вытер бы! Мамулечка, потом бы листочком бы вытер! "
+    "Я бы весь листочком был бы умытый, был бы!!!"
+)]# список, чтобы был батч - 1
+#forward pass
 encoded = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
 input_ids = encoded['input_ids']           # [batch, seq_len]
 attention_mask = encoded['attention_mask'] # [batch, seq_len]
@@ -32,14 +42,14 @@ torch.save(embedded, "tensor.pt")#спасибо тому человеку!
 print(embedded[0,0:20])
 
 #трансформер
-src = embedded.transpose(0, 1) #теперь seq_len затем batch затемem bedding_dim - это требование трнсформера
+src = embedded.transpose(0, 1) #теперь seq_len затем batch затем em bedding_dim - это требование трнсформера
 
 transformerLayer = nn.TransformerEncoderLayer(
     d_model=embedding_dim,
-    nhead=12,#ахринеть как все просто!!!! это типо я щас 10 голов внимания имею!!!
+    nhead=12,#ахринеть как все просто!!!! это типо я щас 12 голов внимания имею!!!
     dim_feedforward=2048, # внутренняя размерность FFN
     dropout=0.1, #Dropout - отключает 10% нейронов случайно при обучении
-    batch_first=False
+    batch_first=False#местами уже изменен тут - src = embedded.transpose(0, 1)
 
 )
 transformer_encoderLayer = nn.TransformerEncoder(transformerLayer,num_layers=2)
@@ -68,7 +78,7 @@ print(probs)
 pred_ids = torch.argmax(probs, dim=-1)
 print(pred_ids)
 pred_tokens = [tokenizer.convert_ids_to_tokens(ids) for ids in pred_ids]
-#просто сапоставить самый вероятный токен
+#просто сопоставить самый вероятный токен
 def decode_tokens(tokens):
     text = ""
     for t in tokens:
@@ -81,15 +91,20 @@ def decode_tokens(tokens):
 
 sentence = decode_tokens(pred_tokens[0])
 print(sentence)
-#обратное распространение
+#обратное распространение(forward pass)
 
-referense = tokenizer(["Чел, иди в роблокс играй!"])
-input_ids = encoded['input_ids']
-target_ids = input_ids.clone()
-torch.save(attention_mask, "input_ids.pt")
+referense = tokenizer(
+    ["Ты живешь последний час! Хочешь, я на одной ноге постою как цапля, хочешь?"],
+    padding='max_length', truncation=True, max_length=input_ids.shape[1], return_tensors='pt'
+)
+target_ids = referense['input_ids']
+
+torch.save(target_ids, "inputReferense_ids.pt")
 
 
-criterion = nn.CrossEntropyLoss()
+
+criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+
 
 loss = criterion(
     logitOutputLayer.view(-1, vocab_size),
