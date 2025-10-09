@@ -85,6 +85,24 @@ def decode_tokens(tokens):
             text += " " + t
     return text.strip()
 
+#позиционное кодирование(так как это конструктор то почему бы и нет ? конечно не обязательно но суну сюда )
+
+class LearnedPositionalEncoding(nn.Module):
+    def __init__(self, max_len: int, embedding_dim: int):
+        super().__init__()
+        self.pos_embedding = nn.Embedding(max_len, embedding_dim)# в чем задумка ? создаем обычный тензор,да ?
+        #по по форме - [max_len, embedding_dim] прям в конструкторе
+        #nn.Embedding при вызове по индексам возвращает соответствующие
+        #строки этой матрицы. Вес pos_embedding.weight автоматически будет
+        #иметь requires_grad=True, значит градиенты пойдут в эти веса и они
+        #будут обновляться оптимизатором.
+    def forward(self, x):
+        # x: [batch, seq_len, embedding_dim] - наш тензор
+        seq_len = x.size(1)#берём длину последовательности в текущем батче.
+        positions = torch.arange(seq_len, device=x.device).unsqueeze(0)  # [1, seq_len]
+        pos_embed = self.pos_embedding(positions)  # [1, seq_len, embedding_dim]
+        return x + pos_embed # результат по форме [1, seq_len, embedding_dim]
+
 #обратное распространение(forward pass)
 
 referense = tokenizer(
@@ -104,17 +122,19 @@ loss = criterion(
     logitOutputLayer.view(-1, vocab_size),
     target_ids.view(-1)
 )
-
+pos_encoding = LearnedPositionalEncoding(max_len=input_ids.shape[1], embedding_dim=embedding_dim)
 optimizer = torch.optim.Adam(list(embedding_layer.parameters()) +
                              list(transformer_encoderLayer.parameters()) +
+                             list(pos_encoding.parameters()) +
                              list(output_layer.parameters()), lr=1e-4)
 
 checkpoint_path = "model_checkpoint.pt"
 
+# Загружаем модель и оптимизатор
 if os.path.exists(checkpoint_path):
-    # Загружаем модель и оптимизатор
     checkpoint = torch.load(checkpoint_path)
     embedding_layer.load_state_dict(checkpoint['embedding_state'])
+    pos_encoding.load_state_dict(checkpoint['pos_encoding_state'])  # 👈 загружаем тоже
     transformer_encoderLayer.load_state_dict(checkpoint['transformer_state'])
     output_layer.load_state_dict(checkpoint['output_state'])
     optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -124,12 +144,12 @@ else:
     start_epoch = 0
     print(" Чекпоинт не найден, начинаем обучение с нуля")
 
-
-epochNum = 20
+epochNum = 10
 for epoch in range(epochNum):
     optimizer.zero_grad()
     epochmy = start_epoch + epoch
     embedded = embedding_layer(input_ids)
+    embedded = pos_encoding(embedded)
     src = embedded.transpose(0, 1)
 
     outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
@@ -137,11 +157,17 @@ for epoch in range(epochNum):
 
     logits = output_layer(outputTransformer)
     loss = criterion(logits.view(-1, vocab_size), target_ids.view(-1))
+    before = pos_encoding.pos_embedding.weight.clone()
     loss.backward()
     optimizer.step()  # обновляем веса
+    after = pos_encoding.pos_embedding.weight
+    print(f"Изменение весов pos_encoding: {(after - before).abs().sum():.6f}")
+    print("Loss:", loss.item())
+
     # После обучения (или внутри цикла, чтобы смотреть динамику)
     with torch.no_grad():
         embedded = embedding_layer(input_ids)
+        embedded = pos_encoding(embedded)
         src = embedded.transpose(0, 1)
         outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
         outputTransformer = outputTransformer.transpose(0, 1)
@@ -154,9 +180,15 @@ for epoch in range(epochNum):
         predicted_text = tokenizer.batch_decode(predicted_token_ids, skip_special_tokens=True)
         print("Predicted text:", predicted_text[0])
 
-print(f"Epoch [{epoch + 1}/{epochNum}] — Loss: {loss.item():.4f}")
+        print("Loss before backward:", loss.item())
+
+for name, param in pos_encoding.named_parameters():
+    print(name, param.shape, param.requires_grad)
+
+print(f"Epoch [{epochmy + 1}/{start_epoch + epochNum}] — Loss: {loss.item():.6f}")
 torch.save({
     'embedding_state': embedding_layer.state_dict(),
+    'pos_encoding_state': pos_encoding.state_dict(),
     'transformer_state': transformer_encoderLayer.state_dict(),
     'output_state': output_layer.state_dict(),
     'optimizer_state': optimizer.state_dict(),
