@@ -72,12 +72,9 @@ output_layer = nn.Linear(embedding_dim,vocab_size)
 logitOutputLayer = output_layer(outputTransformer) # [batch, seq_len, vocab_size]
 
 # Для вероятностей
-probs = torch.softmax(logitOutputLayer, dim=-1)# softmax по словарю
+#probs = torch.softmax(logitOutputLayer, dim=-1)# softmax по словарю
 
-print(probs)
-pred_ids = torch.argmax(probs, dim=-1)
-print(pred_ids)
-pred_tokens = [tokenizer.convert_ids_to_tokens(ids) for ids in pred_ids]
+
 #просто сопоставить самый вероятный токен
 def decode_tokens(tokens):
     text = ""
@@ -88,9 +85,6 @@ def decode_tokens(tokens):
             text += " " + t
     return text.strip()
 
-
-sentence = decode_tokens(pred_tokens[0])
-print(sentence)
 #обратное распространение(forward pass)
 
 referense = tokenizer(
@@ -114,7 +108,40 @@ loss = criterion(
 optimizer = torch.optim.Adam(list(embedding_layer.parameters()) +
                              list(transformer_encoderLayer.parameters()) +
                              list(output_layer.parameters()), lr=1e-4)
-optimizer.zero_grad()
-loss.backward()
-optimizer.step()# обновляем веса
-print("Loss:", loss.item())
+
+epochNum = 1
+for epoch in range(epochNum):
+    optimizer.zero_grad()
+    embedded = embedding_layer(input_ids)
+    src = embedded.transpose(0, 1)
+
+    outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
+    outputTransformer = outputTransformer.transpose(0, 1)  # обратно [batch, seq_len, embedding_dim]
+
+    logits = output_layer(outputTransformer)
+    loss = criterion(logits.view(-1, vocab_size), target_ids.view(-1))
+    loss.backward()
+    optimizer.step()  # обновляем веса
+    # После обучения (или внутри цикла, чтобы смотреть динамику)
+    with torch.no_grad():
+        embedded = embedding_layer(input_ids)
+        src = embedded.transpose(0, 1)
+        outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
+        outputTransformer = outputTransformer.transpose(0, 1)
+        logits = output_layer(outputTransformer)  # [batch, seq_len, vocab_size]
+
+        # Берём самый вероятный токен для каждого положения
+        predicted_token_ids = torch.argmax(logits, dim=-1)  # [batch, seq_len]
+
+        # Переводим индексы обратно в текст
+        predicted_text = tokenizer.batch_decode(predicted_token_ids, skip_special_tokens=True)
+        print("Predicted text:", predicted_text[0])
+
+print(f"Epoch [{epoch + 1}/{epochNum}] — Loss: {loss.item():.4f}")
+torch.save({
+    'embedding_state': embedding_layer.state_dict(),
+    'transformer_state': transformer_encoderLayer.state_dict(),
+    'output_state': output_layer.state_dict(),
+    'optimizer_state': optimizer.state_dict(),
+    'epoch': epoch
+}, "model_checkpoint.pt")
