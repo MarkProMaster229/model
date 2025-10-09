@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+import os
 from transformers import AutoTokenizer
 
 # 1. Токенизация
@@ -109,9 +109,26 @@ optimizer = torch.optim.Adam(list(embedding_layer.parameters()) +
                              list(transformer_encoderLayer.parameters()) +
                              list(output_layer.parameters()), lr=1e-4)
 
-epochNum = 1
+checkpoint_path = "model_checkpoint.pt"
+
+if os.path.exists(checkpoint_path):
+    # Загружаем модель и оптимизатор
+    checkpoint = torch.load(checkpoint_path)
+    embedding_layer.load_state_dict(checkpoint['embedding_state'])
+    transformer_encoderLayer.load_state_dict(checkpoint['transformer_state'])
+    output_layer.load_state_dict(checkpoint['output_state'])
+    optimizer.load_state_dict(checkpoint['optimizer_state'])
+    start_epoch = checkpoint['epoch'] + 1
+    print(f" Модель загружена, продолжаем с эпохи {start_epoch}")
+else:
+    start_epoch = 0
+    print(" Чекпоинт не найден, начинаем обучение с нуля")
+
+
+epochNum = 20
 for epoch in range(epochNum):
     optimizer.zero_grad()
+    epochmy = start_epoch + epoch
     embedded = embedding_layer(input_ids)
     src = embedded.transpose(0, 1)
 
@@ -143,5 +160,5 @@ torch.save({
     'transformer_state': transformer_encoderLayer.state_dict(),
     'output_state': output_layer.state_dict(),
     'optimizer_state': optimizer.state_dict(),
-    'epoch': epoch
+    'epoch': epochmy
 }, "model_checkpoint.pt")
