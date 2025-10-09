@@ -134,7 +134,7 @@ checkpoint_path = "model_checkpoint.pt"
 if os.path.exists(checkpoint_path):
     checkpoint = torch.load(checkpoint_path)
     embedding_layer.load_state_dict(checkpoint['embedding_state'])
-    pos_encoding.load_state_dict(checkpoint['pos_encoding_state'])  # 👈 загружаем тоже
+    pos_encoding.load_state_dict(checkpoint['pos_encoding_state'])
     transformer_encoderLayer.load_state_dict(checkpoint['transformer_state'])
     output_layer.load_state_dict(checkpoint['output_state'])
     optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -177,7 +177,7 @@ for epoch in range(epochNum):
         predicted_token_ids = torch.argmax(logits, dim=-1)  # [batch, seq_len]
 
         # Переводим индексы обратно в текст
-        predicted_text = tokenizer.batch_decode(predicted_token_ids, skip_special_tokens=True)
+        predicted_text = tokenizer.batch_decode(predicted_token_ids, skip_special_tokens=False)
         print("Predicted text:", predicted_text[0])
 
         print("Loss before backward:", loss.item())
