@@ -5,7 +5,8 @@ import os
 from transformers import AutoTokenizer
 from torch.utils.data import DataLoader, TensorDataset
 import json
-
+import matplotlib.pyplot as plt
+import re
 # -----------------------------
 # Настройки
 # -----------------------------
@@ -15,7 +16,7 @@ CHUNK_SIZE = 400
 EPOCHS = 10
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CHECKPOINT_PATH = "model_checkpoint.pt"
-
+loss_history = []# глянем метрики
 # -----------------------------
 # Чанк-токенизация для экономии памяти
 # -----------------------------
@@ -86,14 +87,6 @@ transformer_layer = nn.TransformerEncoderLayer(
 transformer_encoder = nn.TransformerEncoder(transformer_layer, num_layers=num_layers)
 output_layer = nn.Linear(embedding_dim, vocab_size)
 
-# Оптимизатор
-optimizer = torch.optim.Adam(
-    list(embedding_layer.parameters()) +
-    list(transformer_encoder.parameters()) +
-    list(pos_encoding.parameters()) +
-    list(output_layer.parameters()),
-    lr=1e-4
-)
 
 # -----------------------------
 # Функция декодирования токенов
@@ -122,11 +115,30 @@ target_ids = referense['input_ids']
 torch.save(target_ids, "inputReferense_ids.pt")
 
 # -----------------------------
+# Переводим на устройство
+# -----------------------------
+embedding_layer = embedding_layer.to(DEVICE)
+transformer_encoder = transformer_encoder.to(DEVICE)
+pos_encoding = pos_encoding.to(DEVICE)
+output_layer = output_layer.to(DEVICE)
+
+# -----------------------------
+# Оптимизатор
+# -----------------------------
+optimizer = torch.optim.Adam(
+    list(embedding_layer.parameters()) +
+    list(transformer_encoder.parameters()) +
+    list(pos_encoding.parameters()) +
+    list(output_layer.parameters()),
+    lr=1e-4
+)
+
+# -----------------------------
 # Загружаем чекпоинт
 # -----------------------------
 start_epoch = 0
 if os.path.exists(CHECKPOINT_PATH):
-    checkpoint = torch.load(CHECKPOINT_PATH)
+    checkpoint = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
     embedding_layer.load_state_dict(checkpoint['embedding_state'])
     pos_encoding.load_state_dict(checkpoint['pos_encoding_state'])
     transformer_encoder.load_state_dict(checkpoint['transformer_state'])
@@ -137,13 +149,6 @@ if os.path.exists(CHECKPOINT_PATH):
 else:
     print("Чекпоинт не найден, начинаем обучение с нуля")
 
-# -----------------------------
-# Переводим на устройство
-# -----------------------------
-embedding_layer = embedding_layer.to(DEVICE)
-transformer_encoder = transformer_encoder.to(DEVICE)
-pos_encoding = pos_encoding.to(DEVICE)
-output_layer = output_layer.to(DEVICE)
 # -----------------------------
 # Обучение с отладкой
 # -----------------------------
@@ -189,6 +194,7 @@ for epoch in range(start_epoch, start_epoch + EPOCHS):
 
             # Потери
             loss = criterion(logits.view(-1, vocab_size), batch_target_ids.view(-1))
+            loss_history.append(loss.item())
             print(f"[DEBUG] batch {batch_idx + 1} loss: {loss.item():.6f}")
 
             # Backprop
@@ -224,5 +230,25 @@ torch.save({
     'optimizer_state': optimizer.state_dict(),
     'epoch': epoch
 }, CHECKPOINT_PATH)
+
+# --- формируем безопасное имя файла ---
+params_str = f"nhead={nhead}_layers={num_layers}_ff={dim_feedforward}_drop={dropout}"
+# заменяем точки и запятые, чтобы не было проблем в имени файла
+params_str = re.sub(r'[^\w\-]+', '_', params_str)
+
+filename = f"loss_plot_{params_str}.png"
+
+# --- строим график ---
+plt.figure(figsize=(8, 5))
+plt.plot(loss_history, label='Training Loss')
+plt.xlabel('Batch')
+plt.ylabel('Loss')
+plt.title(f"График сходимости модели\n"
+          f"nhead={nhead}, num_layers={num_layers}, "
+          f"dim_feedforward={dim_feedforward}, dropout={dropout}")
+plt.legend()
+plt.grid(True)
+plt.savefig(filename)
+print(f" График сохранён: {filename}")
 
 print("Обучение завершено, чекпоинт сохранён.")
