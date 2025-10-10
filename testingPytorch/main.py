@@ -3,22 +3,18 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 from transformers import AutoTokenizer
+from torch.utils.data import DataLoader, TensorDataset
+import json
 
 # 1. Токенизация
+MAX_LEN = 512
+
+with open("dataset.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
 tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
-text = [(
-    "Мамочка ты моя хорошая, хорошая ты моя мама, мамуля ты моя хорошая! "
-    "Эх ты, матюшка ты моя! Мамочка ты моя! Что ж ты натворила-то?! "
-    "Холодной хочешь стать что ли?! Остывшие щи хочешь мне преподать что ли? "
-    "Мам! Тюря, ты каша-малаша в лепесточки! Эх ты! Мать-то моя! "
-    "Лесом пошли бы, полем пошли бы! Сели бы! Спокойно, спросил бы, "
-    "покакать можно, ты бы сказала бы: иди и покакай под кустик-то! "
-    "И я б покакал бы! Посрал бы там! Обосрал всё! "
-    "Говно бы все вытер пальцем, вытер бы! Мамулечка, потом бы листочком бы вытер! "
-    "Я бы весь листочком был бы умытый, был бы!!!"
-)]# список, чтобы был батч - 1
+text = [item["input"] for item in data] # список, чтобы был батч - 1
 #forward pass
-encoded = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
+encoded = tokenizer(text, padding='max_length', truncation=True, max_length=MAX_LEN, return_tensors="pt")
 input_ids = encoded['input_ids']           # [batch, seq_len]
 attention_mask = encoded['attention_mask'] # [batch, seq_len]
 
@@ -105,9 +101,15 @@ class LearnedPositionalEncoding(nn.Module):
 
 #обратное распространение(forward pass)
 
+targets = [item["target"] for item in data]
+
+
 referense = tokenizer(
-    ["Ты живешь последний час! Хочешь, я на одной ноге постою как цапля, хочешь?"],
-    padding='max_length', truncation=True, max_length=input_ids.shape[1], return_tensors='pt'
+    targets,
+    padding='max_length',
+    truncation=True,
+    max_length=MAX_LEN,
+    return_tensors='pt'
 )
 target_ids = referense['input_ids']
 
@@ -118,11 +120,8 @@ torch.save(target_ids, "inputReferense_ids.pt")
 criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
 
 
-loss = criterion(
-    logitOutputLayer.view(-1, vocab_size),
-    target_ids.view(-1)
-)
-pos_encoding = LearnedPositionalEncoding(max_len=input_ids.shape[1], embedding_dim=embedding_dim)
+
+pos_encoding = LearnedPositionalEncoding(max_len=MAX_LEN, embedding_dim=embedding_dim)#max размер последовательности - 512
 optimizer = torch.optim.Adam(list(embedding_layer.parameters()) +
                              list(transformer_encoderLayer.parameters()) +
                              list(pos_encoding.parameters()) +
@@ -143,44 +142,68 @@ if os.path.exists(checkpoint_path):
 else:
     start_epoch = 0
     print(" Чекпоинт не найден, начинаем обучение с нуля")
+from torch.utils.data import DataLoader, TensorDataset
 
+batch_size = 8  # или сколько позволяет GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Используем устройство:", device)
+
+
+embedding_layer = embedding_layer.to(device)
+transformer_encoderLayer = transformer_encoderLayer.to(device)
+pos_encoding = pos_encoding.to(device)
+output_layer = output_layer.to(device)
+
+# создаём датасет и DataLoader
+dataset = TensorDataset(input_ids, attention_mask, target_ids)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 epochNum = 10
 for epoch in range(epochNum):
-    optimizer.zero_grad()
     epochmy = start_epoch + epoch
-    embedded = embedding_layer(input_ids)
-    embedded = pos_encoding(embedded)
-    src = embedded.transpose(0, 1)
+    running_loss = 0.0
 
-    outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
-    outputTransformer = outputTransformer.transpose(0, 1)  # обратно [batch, seq_len, embedding_dim]
+    for batch in dataloader:
+        batch_input_ids, batch_attention_mask, batch_target_ids = [x.to(device) for x in batch]
+        batch_padding_mask = (batch_attention_mask == 0)
 
-    logits = output_layer(outputTransformer)
-    loss = criterion(logits.view(-1, vocab_size), target_ids.view(-1))
-    before = pos_encoding.pos_embedding.weight.clone()
-    loss.backward()
-    optimizer.step()  # обновляем веса
-    after = pos_encoding.pos_embedding.weight
-    print(f"Изменение весов pos_encoding: {(after - before).abs().sum():.6f}")
-    print("Loss:", loss.item())
+        optimizer.zero_grad()
 
-    # После обучения (или внутри цикла, чтобы смотреть динамику)
-    with torch.no_grad():
-        embedded = embedding_layer(input_ids)
+        # forward
+        embedded = embedding_layer(batch_input_ids)
         embedded = pos_encoding(embedded)
         src = embedded.transpose(0, 1)
-        outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(attention_mask == 0))
+
+        outputTransformer = transformer_encoderLayer(
+            src,
+            src_key_padding_mask=batch_padding_mask
+        )
         outputTransformer = outputTransformer.transpose(0, 1)
-        logits = output_layer(outputTransformer)  # [batch, seq_len, vocab_size]
+        logits = output_layer(outputTransformer)
 
-        # Берём самый вероятный токен для каждого положения
-        predicted_token_ids = torch.argmax(logits, dim=-1)  # [batch, seq_len]
+        # loss и backward
+        loss = criterion(logits.view(-1, vocab_size), batch_target_ids.view(-1))
+        loss.backward()
+        optimizer.step()
 
-        # Переводим индексы обратно в текст
+        running_loss += loss.item() * batch_input_ids.size(0)
+
+    avg_loss = running_loss / len(dataset)
+    print(f"Эпоха {epochmy + 1}/{start_epoch + epochNum} — Loss: {avg_loss:.6f}")
+
+    # генерация текста на первом батче
+    with torch.no_grad():
+        batch_input_ids, batch_attention_mask, _ = [x.to(device) for x in next(iter(dataloader))]
+        embedded = embedding_layer(batch_input_ids)
+        embedded = pos_encoding(embedded)
+        src = embedded.transpose(0, 1)
+        outputTransformer = transformer_encoderLayer(src, src_key_padding_mask=(batch_attention_mask == 0))
+        outputTransformer = outputTransformer.transpose(0, 1)
+        logits = output_layer(outputTransformer)
+
+        predicted_token_ids = torch.argmax(logits, dim=-1)
         predicted_text = tokenizer.batch_decode(predicted_token_ids, skip_special_tokens=False)
-        print("Predicted text:", predicted_text[0])
+        print("Predicted text (пример):", predicted_text[0])
 
-        print("Loss before backward:", loss.item())
 
 for name, param in pos_encoding.named_parameters():
     print(name, param.shape, param.requires_grad)
