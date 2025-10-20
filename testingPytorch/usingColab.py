@@ -1,12 +1,21 @@
+# -----------------------------
+# Установка зависимостей
+# -----------------------------
+!pip install -q bitsandbytes transformers accelerate --upgrade
+
 import torch
+import shutil
+from google.colab import drive
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
+drive.mount('/content/drive')
 
-model_dir = "/home/chelovek/PycharmProjects/PythonProject11/model/testingPytorch/Phi-3.5-mini-int4/"
+
+model_dir = "/content/drive/MyDrive/Phi-3.5-mini-int4"  # измени под свой путь
 
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-print("ток")
+print("Токенизатор загружен")
 
 
 bnb_config = BitsAndBytesConfig(
@@ -22,11 +31,9 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map="auto",
     quantization_config=bnb_config
 )
-print()
-print("модель загружена ")
+print("Модель загружена")
 
-
-messages = [{"role": "user", "content": "как тебя зовут?"}]
+messages = [{"role": "user", "content": "сколько будет 156+361"}]
 
 inputs = tokenizer.apply_chat_template(
     messages,
@@ -35,7 +42,9 @@ inputs = tokenizer.apply_chat_template(
     return_dict=True,
     return_tensors="pt",
 ).to(model.device)
-print("генер ")
-outputs = model.generate(**inputs, max_new_tokens=10)
-print("последовательность  ")
+
+print("Генерация...")
+outputs = model.generate(**inputs, max_new_tokens=40)
+
+print("Результат:")
 print(tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:]))
