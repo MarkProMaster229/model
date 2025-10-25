@@ -33,7 +33,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(device)
 
 # Пример текста
-prompt = ""
+prompt = "95 / 79"
 
 # Токенизация
 inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(device)
@@ -42,7 +42,7 @@ inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(device)
 with torch.no_grad():
     outputs = model.generate(
         **inputs,
-        max_length=10,
+        max_length=40,
         temperature=0.9,
         top_p=0.9,
         do_sample=True,
