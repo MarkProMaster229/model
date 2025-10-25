@@ -3,7 +3,7 @@ from peft import PeftModel
 import torch
 import os
 
-# Настройка потоков CPU
+# Настройка потоков ЦПУ
 torch.set_num_threads(os.cpu_count())
 torch.set_num_interop_threads(os.cpu_count())
 
@@ -11,7 +11,7 @@ torch.set_num_interop_threads(os.cpu_count())
 base_model_name = "ai-forever/rugpt2large"
 adapter_path = "/home/chelovek/PycharmProjects/model/testingPytorch/lora_rugpt2_adapter/"
 
-# Загружаем токенайзер
+# Загрузили токенайзер
 tokenizer = AutoTokenizer.from_pretrained(base_model_name)
 # GPT2 не имеет pad_token, назначаем EOS
 tokenizer.pad_token = tokenizer.eos_token
