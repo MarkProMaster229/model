@@ -2,6 +2,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import os
+import subprocess
 
 
 MODEL_PATH = "/home/chelovek/PycharmProjects/model/finalCut/"
@@ -16,11 +17,12 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
 
 
-input_text = "а вы помните что было вчера ? я вот да"
+input_text = "сколько будет 11+5 "
 inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
 with torch.no_grad():
     outputs = model.generate(**inputs, max_length=40)
 
 result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+subprocess.run(["/home/chelovek/Документы/modelExp/model/testingPytorch/calc", result])
 print("Результат генерации:", result)

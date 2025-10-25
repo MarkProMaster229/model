@@ -68,9 +68,13 @@ double getNumbersFromCalc(std::string answer){
 }
 
 
-int main(){
-    std::string answer= "/calc 2 + 2 * 8 /calcstop";
+int main(int argc, char* argv[]){
 
+    if (argc < 2 || argv[1] == nullptr) {
+        std::cerr << "Ошибка: нужно передать строковый аргумент!" << std::endl;
+        return 1;
+    }
+    std::string answer = argv[1];
     
     std::cout << getNumbersFromCalc(extractSubstring(answer,"/calc","/calcstop"))<<std::endl;
 
