@@ -12,24 +12,28 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 lora_config = LoraConfig(
     task_type=TaskType.CAUSAL_LM,
-    r=8,
-    lora_alpha=16,
-    lora_dropout=0.1,
-    target_modules=["c_attn", "c_proj"],# ключевые слои GPT2
+    r=228,
+    lora_alpha=228,
+    target_modules=[
+        "c_attn",  # внимание
+        "c_proj",  # выход внимания
+        "c_fc",  # вход MLP
+        "c_proj"  # выход MLP (не путай с attention.c_proj)
+    ],
 )
 
 # оборачиваем модель LoRA
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 
-input_text = ("расскажи про себя")
+input_text = ("Пример: 25+13")
 inputs = tokenizer(input_text, return_tensors="pt")
 outputs = model.generate(**inputs, max_length=50)
 result = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 print(result)
 
-with open("dialogs.json", "r", encoding="utf-8") as f:
+with open("datasetCalc.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
 data = {"text": texts}
@@ -50,7 +54,7 @@ training_args = TrainingArguments(
     output_dir="./lora_rugpt2",
     per_device_train_batch_size=2,
     learning_rate=1e-4,
-    num_train_epochs=3,
+    num_train_epochs=7,
     logging_steps=1,
     save_strategy="epoch",
 )

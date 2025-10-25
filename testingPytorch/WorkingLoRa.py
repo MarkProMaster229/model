@@ -33,7 +33,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(device)
 
 # Пример текста
-prompt = "Привет! Как твои дела? Давно тебя не видел на сходках!"
+prompt = ""
 
 # Токенизация
 inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(device)
@@ -42,11 +42,11 @@ inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(device)
 with torch.no_grad():
     outputs = model.generate(
         **inputs,
-        max_length=100,
+        max_length=10,
         temperature=0.9,
         top_p=0.9,
         do_sample=True,
-        pad_token_id=tokenizer.pad_token_id  # чтобы не падало при padding
+        pad_token_id=tokenizer.pad_token_id
     )
 
 # Декодируем и выводим результат
