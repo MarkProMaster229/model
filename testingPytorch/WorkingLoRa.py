@@ -9,7 +9,7 @@ torch.set_num_interop_threads(os.cpu_count())
 
 # Пути
 base_model_name = "ai-forever/rugpt2large"
-adapter_path = "/home/chelovek/PycharmProjects/model/testingPytorch/lora_rugpt2_adapter/"
+adapter_path = "/home/chelovek/Документы/modelExp/t"
 
 # Загрузили токенайзер
 tokenizer = AutoTokenizer.from_pretrained(base_model_name)
@@ -33,7 +33,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(device)
 
 # Пример текста
-prompt = "95 / 79"
+prompt = "сколько будет 95/79"
 
 # Токенизация
 inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(device)

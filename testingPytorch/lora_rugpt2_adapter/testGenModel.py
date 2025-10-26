@@ -5,7 +5,7 @@ import os
 import subprocess
 
 
-MODEL_PATH = "/home/chelovek/PycharmProjects/model/finalCut/"
+MODEL_PATH = "/home/chelovek/Документы/modelExp/finalyTestingModel"
 
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Папка модели не найдена: {MODEL_PATH}")
@@ -24,5 +24,5 @@ with torch.no_grad():
     outputs = model.generate(**inputs, max_length=40)
 
 result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-subprocess.run(["/home/chelovek/Документы/modelExp/model/testingPytorch/calc", result])
+subprocess.run(["/home/chelovek/Документы/modelExp/model/Tool/calc", result])
 print("Результат генерации:", result)

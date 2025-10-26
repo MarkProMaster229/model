@@ -6,8 +6,8 @@ import os
 
 # Параметры
 BASE_MODEL_NAME = "ai-forever/rugpt2large"
-LORA_PATH = "/home/chelovek/PycharmProjects/model/testingPytorch/lora_rugpt2_adapter"
-OUTPUT_PATH = "/home/chelovek/PycharmProjects/model/finalCut"
+LORA_PATH = "/home/chelovek/Документы/modelExp/t"
+OUTPUT_PATH = "/home/chelovek/Документы/modelExp/finalyTestingModel"
 
 os.makedirs(OUTPUT_PATH, exist_ok=True)
 
